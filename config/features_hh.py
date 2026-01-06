@@ -32,6 +32,12 @@ features = [
         x_title=Label("Number of L1 jets - Number of gen muons"),
     ),
 
+    Feature("GenJet_pt", "GenJet_pt",
+        binning=(50, 0, 100),
+        x_title=Label("Gen Jet p_{T}"),
+        units="GeV"
+    ),
+
     Feature("GenBJet_pt", "GenJet_pt[GenJet_pdgId == 5]",
         binning=(50, 0, 100),
         x_title=Label("Gen Jet p_T (matched to b quark)"),
@@ -91,6 +97,55 @@ features = [
         x_title=Label("Gen Jet p_T (matched to q from W, matched to SC (PF) jet)"),
         units="GeV",
         selection_name="SC Jet (PF)"
+    ),
+
+    # Multiple Soft Jets
+
+    Feature("GenJet_matchedPuppiJet_pt", "GenJet_pt[GenJet_matchPuppiJet == 1]",
+        binning=(50, 0, 100),
+        x_title=Label("Gen Jet p_T (matched to PuppiJet)"),
+        units="GeV",
+        selection_name="PuppiJet"
+    ),
+
+    Feature("GenJet_matchedAK4L1PFExtJet_pt", "GenJet_pt[GenJet_matchAK4L1PFExtJet == 1]",
+        binning=(50, 0, 100),
+        x_title=Label("Gen Jet p_T (matched to AK4L1PFExtJet)"),
+        units="GeV",
+        selection_name="AK4L1PFExtJet"
+    ),
+
+    Feature("GenJet_matchedCustomPuppiJet_pt", "GenJet_pt[GenJet_L1ExtPuppi_dR < 0.4]",
+        binning=(50, 0, 100),
+        x_title=Label("Gen Jet p_T (matched to custom Puppi Jet)"),
+        units="GeV",
+        selection_name="Custom PUPPI"
+    ),
+
+    Feature("GenJet_matchedCustomPfJet_pt", "GenJet_pt[GenJet_L1ExtPf_dR < 0.4]",
+        binning=(50, 0, 100),
+        x_title=Label("Gen Jet p_T (matched to custom PF Jet)"),
+        units="GeV",
+        selection_name="Custom PF"
+    ),
+
+    Feature("GenJet_matchedCustomPfJet20_pt", "GenJet_pt[GenJet_L1ExtPf10_dR < 0.4]",
+        binning=(50, 0, 100),
+        x_title=Label("Gen Jet p_T (matched to custom PF Jet, max 20 jets)"),
+        units="GeV",
+        selection_name="Custom PF (max 20 jets)"
+    ),
+
+    Feature("nL1ExtPuppi", "L1ExtPuppi_njets",
+        binning=(101, -0.5, 100.5),
+        x_title=Label("Number of jets"),
+        selection_name="Custom SC Puppi"
+    ),
+
+    Feature("nL1ExtPf", "L1ExtPf_njets",
+        binning=(101, -0.5, 100.5),
+        x_title=Label("Number of jets"),
+        selection_name="Custom SC PF"
     ),
 
 ]

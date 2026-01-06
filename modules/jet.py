@@ -22,10 +22,12 @@ class JetOutput():
                 using Vint = const ROOT::RVec<int>&;
 
                 struct output_jet_%s_%s {
+                    size_t njets;
                     std::vector<std::vector<double>> jets;                          // [max_jets]
                     std::vector<std::vector<std::vector<double>>> constituents;     // [max_jets][max_const]
 
                     output_jet_%s_%s() :
+                        njets(0),
                         jets(%s, {0.0, 0.0, 0.0}),
                         constituents(%s, std::vector<std::vector<double>>(%s, {0.0,0.0,0.0,0.0,0.0,0.0,0.0}))
                     {}
@@ -405,7 +407,8 @@ class SeededConeJetProducer(JetOutput, SeededConeJetAlgoProducer):
                     if (output_jets.size() > 1)  // sorting by pt
                         std::stable_sort(output_jets.begin(), output_jets.end(), jetSort);
 
-                    for (size_t idx = 0; idx < std::min(size_t(%s), output_jets.size()); idx++) {
+                    out.njets = std::min(size_t(%s), output_jets.size());
+                    for (size_t idx = 0; idx < out.njets; idx++) {
                         auto elem = output_jets[idx];
                         std::vector<std::vector<double>> constituents;
                         for (auto &index: elem.constituents) {
@@ -442,9 +445,11 @@ class SeededConeJetProducer(JetOutput, SeededConeJetAlgoProducer):
                 {self.part_type}_dxy, {self.part_type}_z0, {self.part_type}_puppiWeight,
                 {self.R_seed}, {self.R_cen}, {self.R_clu}, {self.update_mask})
             """
+        ).Define(f"{self.output_name}_njets", f"{tmp}.njets"
         ).Define(f"{self.output_name}_jets", f"{tmp}.jets"
         ).Define(f"{self.output_name}_constituents", f"{tmp}.constituents")
-        return df, [f"{self.output_name}_jets", f"{self.output_name}_constituents"]
+        return df, [f"{self.output_name}_njets", f"{self.output_name}_jets",
+            f"{self.output_name}_constituents"]
 
 
 def SeededConeJet(*args, **kwargs):
