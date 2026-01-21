@@ -16,25 +16,100 @@ sc:
     R_cen: 0.4
     R_clu: 0.4
     part_type: PuppiExtended
-    # part_type: L1ExtPuppi
     output_name: L1ExtPuppi
 
-# sc8:
+puppi_jet:
+  name: JetMaker
+  path: modules.jet
+  parameters:
+      jet_name: L1ExtPuppi
+
+
+unsc:
+  name: UnseededConeJet
+  path: modules.jet
+  parameters:
+    max_jets: 20
+    max_const: 999
+    update_mask: true
+    R_seed: 0.4
+    R_cen: 0.4
+    R_clu: 0.4
+    part_type: PuppiExtended
+    output_name: L1ExtPuppiUSC
+
+uns_puppi_jet:
+  name: JetMaker
+  path: modules.jet
+  parameters:
+      jet_name: L1ExtPuppiUSC
+
+# sc_pf:
 #   name: SeededConeJet
 #   path: modules.jet
 #   parameters:
-#     max_jets: 8
+#     max_jets: 200
 #     max_const: 999
 #     update_mask: true
 #     R_seed: 0.4
 #     R_cen: 0.4
 #     R_clu: 0.4
-#     part_type: L1ExtPuppi
-#     output_name: L1ExtPuppi8
+#     part_type: PFExtended
+#     output_name: L1ExtPf
+
+# sc_pf10:
+#   name: SeededConeJet
+#   path: modules.jet
+#   parameters:
+#     max_jets: 20
+#     max_const: 999
+#     update_mask: true
+#     R_seed: 0.4
+#     R_cen: 0.4
+#     R_clu: 0.4
+#     part_type: PFExtended
+#     output_name: L1ExtPf10
+
+genjet_matching_L1ExtPuppi:
+  name: CustomJetGenJetMatching
+  path: modules.jet
+  parameters:
+      jet_name: L1ExtPuppi
+
+genjet_matching_L1ExtPuppiUSC:
+  name: CustomJetGenJetMatching
+  path: modules.jet
+  parameters:
+      jet_name: L1ExtPuppiUSC
 
 
-sc_pf:
-  name: SeededConeJet
+# genjet_matching_L1ExtPf:
+#   name: CustomJetGenJetMatching
+#   path: modules.jet
+#   parameters:
+#       jet_name: L1ExtPf
+
+# genjet_matching_L1ExtPf10:
+#   name: CustomJetGenJetMatching
+#   path: modules.jet
+#   parameters:
+#       jet_name: L1ExtPf10
+
+JetGenJetMatching_l1:
+  name: JetGenJetMatching
+  path: modules.jet
+  parameters:
+    jet_var: PuppiJet
+
+# JetGenJetMatching_l1_AK4PF:
+#   name: JetGenJetMatching
+#   path: modules.jet
+#   parameters:
+#     jet_var: AK4L1PFExtJet
+
+
+axissc_pf:
+  name: AxisSeededConeJet
   path: modules.jet
   parameters:
     max_jets: 200
@@ -44,65 +119,22 @@ sc_pf:
     R_cen: 0.4
     R_clu: 0.4
     # part_type: L1ExtPf
-    part_type: PFExtended
-    output_name: L1ExtPf
+    axis_name: L1ExtPuppi
+    # axis_name: PuppiJet
+    part_type: PuppiExtended
+    output_name: L1PuppiReFit
 
-sc_pf10:
-  name: SeededConeJet
+
+axis_jet:
+  name: JetMaker
   path: modules.jet
   parameters:
-    max_jets: 20
-    max_const: 999
-    update_mask: true
-    R_seed: 0.4
-    R_cen: 0.4
-    R_clu: 0.4
-    # part_type: L1ExtPf
-    part_type: PFExtended
-    output_name: L1ExtPf10
+      jet_name: L1PuppiReFit
 
-genjet_matching_L1ExtPuppi:
+
+genjet_matching_refit:
   name: CustomJetGenJetMatching
   path: modules.jet
   parameters:
-      jet_name: L1ExtPuppi
-
-# genjet_matching_L1ExtPuppi8:
-#   name: CustomJetGenJetMatching
-#   path: modules.jet
-#   parameters:
-#       jet_name: L1ExtPuppi8
-
-genjet_matching_L1ExtPf:
-  name: CustomJetGenJetMatching
-  path: modules.jet
-  parameters:
-      jet_name: L1ExtPf
-
-genjet_matching_L1ExtPf10:
-  name: CustomJetGenJetMatching
-  path: modules.jet
-  parameters:
-      jet_name: L1ExtPf10
-
-JetGenJetMatching_l1:
-  name: JetGenJetMatching
-  path: modules.jet
-  parameters:
-    jet_var: PuppiJet
-
-JetGenJetMatching_l1_AK4PF:
-  name: JetGenJetMatching
-  path: modules.jet
-  parameters:
-    jet_var: AK4L1PFExtJet
-
-
-
-
-# sc8_jet:
-#   name: JetMaker
-#   path: modules.jet
-#   parameters:
-#       jet_name: L1ExtPuppi8
+      jet_name: L1PuppiReFit
 

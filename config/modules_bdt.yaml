@@ -1,0 +1,13 @@
+bdt_inputs:
+   name: BDTInput
+   path: modules.bdt
+   parameters:
+     year: self.config.year
+
+
+# bdt:
+#   name: MSJBDT
+#   path: L1DS.Modules.BDTinference
+#   parameters:
+#     year: self.config.year
+#     isMC: self.dataset.process.isMC

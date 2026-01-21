@@ -1,0 +1,7 @@
+bdt:
+  name: MSJBDT
+  path: L1DS.Modules.BDTinference
+  parameters:
+    year: self.config.year
+    isMC: self.dataset.process.isMC
+    model_path: /afs/cern.ch/work/j/jleonhol/private/l1ds/nanoaod_base_analysis/data/cmssw/CMSSW_13_0_13/src/L1DS/Modules/data/model_bkgrej.json

@@ -1,0 +1,8 @@
+drop .*
+keep nbjets
+keep nmu
+keep nvtx
+keep bjet._pt
+keep bjet._btag
+keep mu._pt
+keep mu._z0
