@@ -12,10 +12,10 @@ ROOT.gStyle.SetOptStat(0)
 
 c = RatioCanvas()
 
-p = "/eos/home-j/jleonhol/cmt/FeaturePlot/msj_phase2/cat_base/prod_1401/root/{}__nodata.root"
-min_number_of_bjets = 2
+p = "/eos/home-j/jleonhol/cmt/FeaturePlot/msj_phase2/cat_base/prod_2801_btag/root/{}__nodata.root"
+min_number_of_bjets = 4
 
-features = [f for f in config.features if "nbjets_btag" in f.name]
+features = [f for f in config.features if "nbjets_4const_btag" in f.name]
 dataset_names = ["QCD", "caseC_m220_67", "chain_m70LSP_dm20_500k"]
 colours = [ROOT.kRed, ROOT.kGreen, ROOT.kBlue]
 
@@ -61,8 +61,11 @@ for ifeat, f in enumerate(features):
     dens = [sum([tmp_histos[id].GetBinContent(b + 1) for b in range(0, 7)])
         for id, d in enumerate(dataset_names)]
 
+    print(nums)
+    print(dens)
+
     for ih in range(len(histos)):
-        histos[ih].SetBinContent(ifeat + 1, float(nums[ih]) / float(dens[ih]))
+        histos[ih].SetBinContent(ifeat + 1, float(nums[ih]) / float(dens[ih]) if dens[ih] != 0 else 0)
 
     for ih in range(len(sig_histos)):
         ratio = nums[ih + 1] / math.sqrt(nums[0]) if nums[0] != 0 else 0

@@ -8,7 +8,7 @@ class BDTInputProducer():
             std::vector<float> get_bdt_inputs(
                 int nPuppiJet, Vf PuppiJet_btagScore, Vf PuppiJet_pt,
                 int nTkMu, Vf TkMu_pt, Vf TkMu_z0,
-                int nL1Vtx, float L1Vtx_z
+                int nL1Vtx, Vf L1Vtx_z
             ) {
                 // input variables:
                 // number of bjets, number of muons, number of vertices
@@ -25,7 +25,7 @@ class BDTInputProducer():
                 inputs[1] = std::min(nTkMu, 3);
                 for (size_t i = 0; i < inputs[1]; i++) {
                     inputs[15 + 2 * i    ] = TkMu_pt[i];
-                    inputs[15 + 2 * i + 1] = TkMu_z0[i] - L1Vtx_z;
+                    inputs[15 + 2 * i + 1] = TkMu_z0[i] - L1Vtx_z[0];
                 }
                 inputs[2] = nL1Vtx;
                 return inputs;

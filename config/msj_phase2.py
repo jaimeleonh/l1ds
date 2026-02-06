@@ -22,6 +22,10 @@ class Config(base_config):
                 selection="(PuppiJet_pt[PuppiJet_btagScore > 0.6].size() >= 2) && (event % 2 == 1)"),
             Category("btag_even", "2 b-tagged jets, Even event number",
                 selection="(PuppiJet_pt[PuppiJet_btagScore > 0.6].size() >= 2) && (event % 2 == 0)"),
+            Category("btag_4const_odd", "4 b-tagged jets with #geq 4 constituents, Odd event number",
+                selection="(PuppiJet_pt[PuppiJet_btagScore > 0.5 && PuppiJet_numberOfDaughters >= 4].size() >= 4) && (event % 2 == 1)"),
+            Category("btag_4const_even", "4 b-tagged jets with #geq 4 constituents, Even event number",
+                selection="(PuppiJet_pt[PuppiJet_btagScore > 0.5 && PuppiJet_numberOfDaughters >= 4].size() >= 4) && (event % 2 == 0)"),
         ]
         return ObjectCollection(categories)
 
@@ -117,6 +121,12 @@ class Config(base_config):
                     x_title=Label(f"Distribution of PuppiJets with a btag > {btag}"),
                 )
             )
+            features.append(
+                Feature(f"nbjets_4const_btag_{btag_str}", f"PuppiJet_pt[PuppiJet_btagScore > {btag} && PuppiJet_numberOfDaughters >= 4].size()",
+                    binning=(7, -0.5, 6.5),
+                    x_title=Label(f"Distribution of PuppiJets with a btag > {btag} and #geq 4 constituents"),
+                )
+            )
         features += [
             Feature(f"bdt", "bdt",
                 binning=(50, 0, 1),
@@ -137,6 +147,10 @@ class Config(base_config):
                 x_title=Label("Puppi Jet btag score"),
                 units="GeV"
             ),
+            Feature("PuppiJet_nconst", "PuppiJet_numberOfDaughters",
+                binning=(20, 0.5, 20.5),
+                x_title=Label("Number of constituents per PuppiJet"),
+            ),
             Feature("ngenbjet", "GenJet_pt[abs(GenJet_pdgId) == 5].size()",
                 binning=(11, -0.5, 10.5),
                 x_title=Label("Number of gen b jets"),
@@ -145,7 +159,6 @@ class Config(base_config):
                 binning=(11, -0.5, 10.5),
                 x_title=Label("Number of gen jets per event"),
             ),
-
 
             # Multiple Soft Jets
 
@@ -177,7 +190,7 @@ class Config(base_config):
                 selection_name="Custom PF"
             ),
 
-            Feature("GenJet_matchedCustomPfJet20_pt", "GenJet_pt[GenJet_L1ExtPf10_dR < 0.4]",
+            Feature("GenJet_matchedCustomPfJet20_pt", "GenJet_pt[GenJet_L1ExtPf20_dR < 0.4]",
                 binning=(50, 0, 100),
                 x_title=Label("Gen Jet p_T (matched to custom PF Jet, max 20 jets)"),
                 units="GeV",

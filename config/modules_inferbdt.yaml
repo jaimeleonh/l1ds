@@ -4,4 +4,5 @@ bdt:
   parameters:
     year: self.config.year
     isMC: self.dataset.process.isMC
-    model_path: /afs/cern.ch/work/j/jleonhol/private/l1ds/nanoaod_base_analysis/data/cmssw/CMSSW_13_0_13/src/L1DS/Modules/data/model_bkgrej.json
+    model_path: /afs/cern.ch/work/j/jleonhol/private/l1ds/nanoaod_base_analysis/data/cmssw/CMSSW_13_0_13/src/L1DS/Modules/data/model_4const.json
+      #model_path: /afs/cern.ch/work/j/jleonhol/private/l1ds/nanoaod_base_analysis/data/cmssw/CMSSW_13_0_13/src/L1DS/Modules/data/model_bkgrej_3000.json

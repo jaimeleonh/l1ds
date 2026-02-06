@@ -23,6 +23,7 @@ class JetOutput():
 
                 struct output_jet_%s_%s {
                     size_t njets;
+                    std::vector<size_t> nconstituents;
                     std::vector<std::vector<double>> jets;                          // [max_jets]
                     std::vector<std::vector<std::vector<double>>> constituents;     // [max_jets][max_const]
 
@@ -275,6 +276,7 @@ class SeededConeJetAlgoProducer():
                 ) {
                     output_single_jet out;
                     double total_weight = 0;
+                    // std::cout << "Axis eta: " << axis_eta << " Axis phi: " << axis_phi << std::endl;
                     for (size_t ip = 0; ip < part_eta.size(); ip++) {
                         if (mask[ip] == 1) continue;
                         auto dR = reco::deltaR(part_eta[ip], part_phi[ip], axis_eta, axis_phi); 
@@ -284,7 +286,7 @@ class SeededConeJetAlgoProducer():
                         out.constituents.push_back(ip);
                         if (update_mask)
                             mask[ip] = 1;
-
+                        // std::cout << part_pt[ip] << " " << part_eta[ip] << " " << part_phi[ip] << " " << dR << std::endl;
                         // compute the deltaEta and deltaPhi vs the axis
                         auto deltaEta = part_eta[ip] - axis_eta;
                         auto deltaPhi = reco::deltaPhi(part_phi[ip], axis_phi);
@@ -307,7 +309,6 @@ class SeededConeJetAlgoProducer():
 class SeededConeJetProducer(JetOutput, SeededConeJetAlgoProducer):
     def __init__(self, *args, **kwargs):
         super(SeededConeJetProducer, self).__init__(*args, **kwargs)
-        self.algo_name = "sc"
         self.update_mask = kwargs.pop("update_mask", "true")
         self.update_mask = str(self.update_mask).lower()
         self.R_seed = kwargs.pop("R_seed", 0.4)
@@ -353,7 +354,6 @@ class SeededConeJetProducer(JetOutput, SeededConeJetAlgoProducer):
                         Vd Part_dxy, Vd Part_z0, Vd Part_puppiWeight,
                         float R_seed, float R_cen, float R_clu, bool update_mask) {
                     output_jet_%s_%s out;
-
                     std::vector<int> mask(nPart, 1);
                     // Seed finding
                     // Two nested loops. 
@@ -402,6 +402,7 @@ class SeededConeJetProducer(JetOutput, SeededConeJetAlgoProducer):
                             mask, update_mask
                         );
                         result.jet[0] += elem.pt;
+                        result.constituents.insert(result.constituents.begin(), elem.seed);
                         output_jets.push_back(result);
                     }
                     if (output_jets.size() > 1)  // sorting by pt
@@ -426,6 +427,7 @@ class SeededConeJetProducer(JetOutput, SeededConeJetAlgoProducer):
                         }
                         out.jets[idx] = elem.jet;
                         out.constituents[idx] = constituents;
+                        out.nconstituents.push_back(constituents.size());
                     }
                     return out;
                 }
@@ -447,9 +449,10 @@ class SeededConeJetProducer(JetOutput, SeededConeJetAlgoProducer):
             """
         ).Define(f"{self.output_name}_njets", f"{tmp}.njets"
         ).Define(f"{self.output_name}_jets", f"{tmp}.jets"
-        ).Define(f"{self.output_name}_constituents", f"{tmp}.constituents")
+        ).Define(f"{self.output_name}_constituents", f"{tmp}.constituents"
+        ).Define(f"{self.output_name}_nconstituents", f"{tmp}.nconstituents")
         return df, [f"{self.output_name}_njets", f"{self.output_name}_jets",
-            f"{self.output_name}_constituents"]
+            f"{self.output_name}_constituents", f"{self.output_name}_nconstituents"]
 
 
 def SeededConeJet(*args, **kwargs):
@@ -475,6 +478,272 @@ def SeededConeJet(*args, **kwargs):
                 
     """
     return lambda: SeededConeJetProducer(*args, **kwargs)
+
+
+class AxisSeededConeJetProducer(SeededConeJetProducer):
+    def __init__(self, *args, **kwargs):
+        super(AxisSeededConeJetProducer, self).__init__(*args, **kwargs)
+        self.axis_name = kwargs.pop("axis_name")
+
+        if not os.getenv(f"axissc_{self.max_jets}_{self.max_const}"):
+            os.environ[f"axissc_{self.max_jets}_{self.max_const}"] = "sc"
+            ROOT.gInterpreter.Declare("""
+                #include "DataFormats/Math/interface/deltaR.h"
+                #include <iostream>
+                #include <cstring>
+                #include <array>
+
+                using Vd = const ROOT::RVec<double>&;
+                using Vint = const ROOT::RVec<int>&;
+
+                output_jet_%s_%s run_axis_sc_%s_%s(
+                        int nJet,
+                        Vd Jet_pt, Vd Jet_eta, Vd Jet_phi,
+                        int nPart,
+                        Vd Part_pt, Vd Part_eta, Vd Part_phi,
+                        Vd Part_dxy, Vd Part_z0, Vd Part_puppiWeight,
+                        float R_seed, float R_cen, float R_clu, bool update_mask) {
+                    output_jet_%s_%s out;
+
+                    // No need to look for any seeds, since the axis is already defined
+                    // Every particle can be used in the jet clustering, no masking
+                    std::vector<int> mask(nPart, 0);
+
+                    // Sorting input jets by pt
+                    std::vector<seed_index_pt> seed_index_pt_vec;
+                    for (size_t i = 0; i < nJet; i++) {
+                        seed_index_pt_vec.push_back(seed_index_pt({i, Jet_pt[i]}));
+                    }
+                    if (seed_index_pt_vec.size() > 1)  // sorting by pt
+                        std::stable_sort(seed_index_pt_vec.begin(), seed_index_pt_vec.end(), seedSort);
+
+                    // Run SC over the selected seeds
+                    std::vector<output_single_jet> output_jets;
+                    for (size_t idx = 0; idx < seed_index_pt_vec.size(); idx++) {
+                        auto elem = seed_index_pt_vec[idx];
+                        auto result = run_sc_single_jet(
+                            Jet_eta[elem.seed], Jet_phi[elem.seed],
+                            Part_pt, Part_eta, Part_phi,
+                            Part_pt, R_clu,
+                            mask, update_mask
+                        );
+                        // In this case the axis pt mustn't be used in the jet pt computation
+                        // result.jet[0] += elem.pt;
+                        output_jets.push_back(result);
+                    }
+                    if (output_jets.size() > 1)  // sorting by pt
+                        std::stable_sort(output_jets.begin(), output_jets.end(), jetSort);
+
+                    out.njets = std::min(size_t(%s), output_jets.size());
+                    for (size_t idx = 0; idx < out.njets; idx++) {
+                        auto elem = output_jets[idx];
+                        std::vector<std::vector<double>> constituents;
+                        for (auto &index: elem.constituents) {
+                            constituents.push_back(
+                                {
+                                    Part_pt[index],
+                                    Part_eta[index],
+                                    Part_phi[index],
+                                    0,
+                                    Part_dxy[index],
+                                    Part_z0[index],
+                                    Part_puppiWeight[index]
+                                }
+                            );
+                        }
+                        out.jets[idx] = elem.jet;
+                        out.constituents[idx] = constituents;
+                        out.nconstituents.push_back(constituents.size());
+                    }
+                    return out;
+                }
+            """ % (
+                    self.max_jets, self.max_const, self.max_jets, self.max_const, 
+                    self.max_jets, self.max_const, self.max_jets
+                )
+            )
+
+
+    def run(self, df):
+        from analysis_tools.utils import randomize
+        tmp = randomize("tmp")
+        df = df.Define(tmp,
+            f"""run_axis_sc_{self.max_jets}_{self.max_const}(
+                n{self.axis_name}, {self.axis_name}_pt, {self.axis_name}_eta, {self.axis_name}_phi,
+                n{self.part_type}, {self.part_type}_pt, {self.part_type}_eta, {self.part_type}_phi,
+                {self.part_type}_dxy, {self.part_type}_z0, {self.part_type}_puppiWeight,
+                {self.R_seed}, {self.R_cen}, {self.R_clu}, {self.update_mask})
+            """
+        ).Define(f"{self.output_name}_njets", f"{tmp}.njets"
+        ).Define(f"{self.output_name}_jets", f"{tmp}.jets"
+        ).Define(f"{self.output_name}_constituents", f"{tmp}.constituents"
+        ).Define(f"{self.output_name}_nconstituents", f"{tmp}.nconstituents")
+        return df, [f"{self.output_name}_njets", f"{self.output_name}_jets",
+            f"{self.output_name}_constituents", f"{self.output_name}_nconstituents"]
+
+
+def AxisSeededConeJet(*args, **kwargs):
+    """
+    Module to create seeded cone jets from constituents.
+
+    YAML sintaxis:
+
+    .. code-block:: yaml
+
+        codename:
+            name: AxisSeededConeJet
+            path: modules.jet
+            parameters:
+                max_jets: 999
+                max_const: 999
+                update_mask: true/false  # cpp-like
+                R_seed: 0.4
+                R_cen: 0.4
+                R_clu: 0.4
+                axis_name: Jet
+                part_type: Part
+                output_name: Part
+                
+    """
+    return lambda: AxisSeededConeJetProducer(*args, **kwargs)
+
+
+class UnseededConeJetProducer(SeededConeJetProducer):
+    def __init__(self, *args, **kwargs):
+        super(UnseededConeJetProducer, self).__init__(*args, **kwargs)
+        self.update_mask = "false"
+
+        if not os.getenv(f"usc_{self.max_jets}_{self.max_const}"):
+            os.environ[f"usc_{self.max_jets}_{self.max_const}"] = "usc"
+            ROOT.gInterpreter.Declare("""
+                #include "DataFormats/Math/interface/deltaR.h"
+                #include "fastjet/ClusterSequence.hh"
+                #include <iostream>
+                #include <cstring>
+                #include <array>
+
+                using Vd = const ROOT::RVec<double>&;
+                using Vint = const ROOT::RVec<int>&;
+
+                output_jet_%s_%s run_usc_%s_%s(
+                        int nPart,
+                        Vd Part_pt, Vd Part_eta, Vd Part_phi,
+                        Vd Part_dxy, Vd Part_z0, Vd Part_puppiWeight,
+                        float R_seed, float R_cen, float R_clu, bool update_mask) {
+                    output_jet_%s_%s out;
+                    // No need to mask anything, all candidates are treated as seeds
+                    // Run SC over all seeds
+                    // The output jets are stored in a tmp vector,
+                    // so that a pt&dR cleaning is performed later before outputting
+                    std::vector<output_single_jet> tmp_jets;
+
+                    for (size_t idx = 0; idx < nPart; idx++) {
+                        // Even if we are not masking any particles,
+                        // we create the mask so that the seed is not counted twice
+                        std::vector<int> mask(nPart, 0);
+                        mask[idx] = 1;
+                        auto result = run_sc_single_jet(
+                            Part_eta[idx], Part_phi[idx],
+                            Part_pt, Part_eta, Part_phi,
+                            Part_pt, R_clu,
+                            mask, update_mask
+                        );
+                        result.jet[0] += Part_pt[idx];
+                        result.constituents.insert(result.constituents.begin(), idx);
+                        tmp_jets.push_back(result);
+                    }
+                    if (tmp_jets.size() > 1)  // sorting by pt
+                        std::stable_sort(tmp_jets.begin(), tmp_jets.end(), jetSort);
+
+                    // filtering by pt and dR
+                    std::vector<output_single_jet> output_jets;
+                    output_jets.push_back(tmp_jets[0]);
+                    for (size_t idx = 1; idx < nPart; idx++) {
+                        auto found_match = false;
+                        for (size_t idx2 = 0; idx2 < idx; idx2++) {
+                            if (
+                                reco::deltaR(tmp_jets[idx].jet[1], tmp_jets[idx].jet[2],
+                                    tmp_jets[idx2].jet[1], tmp_jets[idx2].jet[2]) < 0.4
+                            ) {
+                                found_match = true;
+                                break;
+                            }
+                        }
+                        if (found_match)
+                            continue;
+                        output_jets.push_back(tmp_jets[idx]);
+                    }
+
+                    out.njets = std::min(size_t(%s), output_jets.size());
+                    for (size_t idx = 0; idx < out.njets; idx++) {
+                        auto elem = output_jets[idx];
+                        std::vector<std::vector<double>> constituents;
+                        for (auto &index: elem.constituents) {
+                            constituents.push_back(
+                                {
+                                    Part_pt[index],
+                                    Part_eta[index],
+                                    Part_phi[index],
+                                    0,
+                                    Part_dxy[index],
+                                    Part_z0[index],
+                                    Part_puppiWeight[index]
+                                }
+                            );
+                        }
+                        out.jets[idx] = elem.jet;
+                        out.constituents[idx] = constituents;
+                        out.nconstituents.push_back(constituents.size());
+                    }
+                    return out;
+                }
+            """ % (
+                    self.max_jets, self.max_const, self.max_jets, self.max_const, 
+                    self.max_jets, self.max_const, self.max_jets
+                )
+            )
+
+
+    def run(self, df):
+        from analysis_tools.utils import randomize
+        tmp = randomize("tmp")
+        df = df.Define(tmp,
+            f"""run_usc_{self.max_jets}_{self.max_const}(
+                n{self.part_type}, {self.part_type}_pt, {self.part_type}_eta, {self.part_type}_phi,
+                {self.part_type}_dxy, {self.part_type}_z0, {self.part_type}_puppiWeight,
+                {self.R_seed}, {self.R_cen}, {self.R_clu}, {self.update_mask})
+            """
+        ).Define(f"{self.output_name}_njets", f"{tmp}.njets"
+        ).Define(f"{self.output_name}_jets", f"{tmp}.jets"
+        ).Define(f"{self.output_name}_constituents", f"{tmp}.constituents"
+        ).Define(f"{self.output_name}_nconstituents", f"{tmp}.nconstituents")
+        return df, [f"{self.output_name}_njets", f"{self.output_name}_jets",
+            f"{self.output_name}_constituents", f"{self.output_name}_nconstituents"]
+
+
+def UnseededConeJet(*args, **kwargs):
+    """
+    Module to create seeded cone jets from constituents.
+
+    YAML sintaxis:
+
+    .. code-block:: yaml
+
+        codename:
+            name: SeededConeJet
+            path: modules.jet
+            parameters:
+                max_jets: 999
+                max_const: 999
+                R_seed: 0.4
+                R_cen: 0.4
+                R_clu: 0.4
+                part_type: Part
+                output_name: Part
+                
+    """
+    return lambda: UnseededConeJetProducer(*args, **kwargs)
+
 
 
 class CustomJetGenJetMatchingProducer():
@@ -544,28 +813,32 @@ class JetMakerProducer(JetOutput):
     def __init__(self, *args, **kwargs):
         self.jet_name = kwargs.pop("jet_name")
         super().__init__(*args, **kwargs)
-        ROOT.gInterpreter.Declare("""
-            std::vector<ROOT::RVec<double>> build_jets(std::vector<std::vector<double>> jets, int max_jets) {
-                ROOT::RVec<double> Jet_pt(max_jets, 0);
-                ROOT::RVec<double> Jet_eta(max_jets, 0);
-                ROOT::RVec<double> Jet_phi(max_jets, 0);
-                for (size_t i = 0; i < max_jets; i++) {
-                    Jet_pt[i] = jets[i][0];
-                    Jet_eta[i] = jets[i][1];
-                    Jet_phi[i] = jets[i][2];
+        if not os.getenv(f"_JetMakerProducer"):
+            os.environ[f"_JetMakerProducer"] = "JetMakerProducer"
+            ROOT.gInterpreter.Declare("""
+                std::vector<ROOT::RVec<double>> build_jets(std::vector<std::vector<double>> jets, int max_jets) {
+                    ROOT::RVec<double> Jet_pt(max_jets, 0);
+                    ROOT::RVec<double> Jet_eta(max_jets, 0);
+                    ROOT::RVec<double> Jet_phi(max_jets, 0);
+                    for (size_t i = 0; i < max_jets; i++) {
+                        Jet_pt[i] = jets[i][0];
+                        Jet_eta[i] = jets[i][1];
+                        Jet_phi[i] = jets[i][2];
+                    }
+                    return {Jet_pt, Jet_eta, Jet_phi};
                 }
-                return {Jet_pt, Jet_eta, Jet_phi};
-            }
-        """)
+            """)
 
     def run(self, df):
         from analysis_tools.utils import randomize
 
         tmp = randomize("tmp")
         branches = [f"{self.jet_name}_{b}" for b in ["pt", "eta", "phi"]]
-        df = df.Define(tmp, f"build_jets({self.jet_name}_jets, {self.max_jets})")
+        df = df.Define(tmp, f"build_jets({self.jet_name}_jets, {self.jet_name}_njets)")
         for ib, b in enumerate(branches):
             df = df.Define(b, f"{tmp}[{ib}]")
+        branches.append(f"n{self.jet_name}")
+        df = df.Define(f"n{self.jet_name}", f"{branches[0]}.size()")
         return df, branches
 
 

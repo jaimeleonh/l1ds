@@ -6,7 +6,7 @@ from glob import glob
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 
-base_dir = "/eos/home-j/jleonhol/cmt/MergeCategorization/msj_phase2/{}/cat_btag_even/prod_1901"
+base_dir = "/eos/home-j/jleonhol/cmt/MergeCategorization/msj_phase2/{}/cat_btag_even/prod_2701"
 
 signal_sample = "caseC_m220_67"
 
@@ -96,6 +96,8 @@ if __name__ == "__main__":
     X = np.concatenate([X_sig, X_bkg])
     y = np.concatenate([y_sig, y_bkg])
     w = np.concatenate([w_sig, w_bkg])
+
+    print(X.shape)
 
     # X_train = X.sample(frac=0.7, random_state=3).dropna()
     # y_train = y.loc[X_train.index]

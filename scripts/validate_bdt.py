@@ -7,7 +7,7 @@ from train_bdt import load_sample, signal_sample, background_samples, xsecs
 
 ## Validation
 
-val_dir = "/eos/home-j/jleonhol/cmt/MergeCategorization/msj_phase2/{}/cat_btag_odd/prod_1901"
+val_dir = "/eos/home-j/jleonhol/cmt/MergeCategorization/msj_phase2/{}/cat_btag_odd/prod_2701"
 
 X_val_sig, y_val_sig, w_val_sig, _ = load_sample(signal_sample, folder=val_dir, label=1)
 
@@ -95,6 +95,8 @@ plt.xlabel("Background efficiency")
 plt.ylabel("Signal efficiency")
 plt.legend()
 plt.grid(True)
+
+plt.xscale('log')
 
 plt.tight_layout()
 
