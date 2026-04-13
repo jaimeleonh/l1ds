@@ -12,11 +12,17 @@ ROOT.gStyle.SetOptStat(0)
 
 c = RatioCanvas()
 
-p = "/eos/home-j/jleonhol/cmt/FeaturePlot/msj_phase2/cat_base/prod_2801_btag/root/{}__nodata.root"
-min_number_of_bjets = 4
+p = "/eos/home-j/jleonhol/cmt/FeaturePlot/msj_phase2/cat_base/prod_1401/root/{}__nodata.root"
+# p = "/eos/home-j/jleonhol/cmt/FeaturePlot/msj_phase2/cat_base/prod_2801_btag/root/{}__nodata.root"
+#p = "/eos/user/j/jleonhol/cmt/FeaturePlot/msj_phase2/cat_odd/prod_1003_valid/root/{}__nodata.root"
+folder = "./plots/"
+#folder = "./plots_part/"
+min_number_of_bjets = 3
 
-features = [f for f in config.features if "nbjets_4const_btag" in f.name]
-dataset_names = ["QCD", "caseC_m220_67", "chain_m70LSP_dm20_500k"]
+#features = [f for f in config.features if "nbjets_part_btag" in f.name]
+# features = [f for f in config.features if "nbjets_4const_btag" in f.name]
+features = [f for f in config.features if "nbjets_btag" in f.name]
+dataset_names = ["QCD", "caseC_m220_67"]#, "chain_m70LSP_dm20_500k"]
 colours = [ROOT.kRed, ROOT.kGreen, ROOT.kBlue]
 
 histos = [
@@ -92,4 +98,5 @@ c.get_pad(2).cd()
 for h in sig_histos:
     h.Draw("same")
 
-c.SaveAs(f"histo_{min_number_of_bjets}btag.pdf")
+c.SaveAs(f"{folder}/histo_{min_number_of_bjets}btag.png")
+c.SaveAs(f"{folder}/histo_{min_number_of_bjets}btag.pdf")

@@ -4,11 +4,11 @@ from analysis_tools.utils import import_root
 ROOT = import_root()
 
 
-class JetOutput():
+class JetOutput(object):
     def __init__(self, *args, **kwargs):
         self.max_jets = kwargs.pop("max_jets", 8)
         self.max_const = kwargs.pop("max_const", 16)
-        super().__init__(*args, **kwargs)
+        # super().__init__(*args, **kwargs)
 
         if not os.getenv(f"JetOutput_{self.max_jets}_{self.max_const}"):
             os.environ[f"JetOutput_{self.max_jets}_{self.max_const}"] = "JetOutput"
@@ -113,44 +113,102 @@ def AntiKtFastJet(*args, **kwargs):
     return lambda: AntiKtFastJetProducer()
 
 
-class GenJetMatchingProducer():
+class CustomGenJetMatchingProducer(JetOutput):
     def __init__(self, *args, **kwargs):
-        ROOT.gInterpreter.Declare("""
-            using Vd = const ROOT::RVec<double>&;
-            using Vfloat = const ROOT::RVec<float>&;
-            using Vint = const ROOT::RVec<int>&;
-            #include "DataFormats/Math/interface/deltaR.h"
-            
-            std::vector<int> jet_matches_bjet(
-                std::vector<std::vector<double>> jets,
-                int nGenPart,
-                const Vfloat& GenPart_eta,
-                const Vfloat& GenPart_phi,
-                const Vint& GenPart_pdgId,
-                const Vint& GenPart_status
-            ) {
-                std::vector<int> jet_isb(8, 0);
-                for (size_t i = 0; i < 8; i++) {
-                    if (jets[i][0] == 0)
-                        break;
-                    for (size_t igen = 0; igen < nGenPart; igen++) {
-                        if (abs(GenPart_pdgId[igen]) != 5 || GenPart_status[igen] != 23)
-                            continue;
-                        if (reco::deltaR(GenPart_eta[igen], GenPart_phi[igen], jets[i][1], jets[i][2]) < 0.4) {
-                            jet_isb[i] = 1;
+        super(CustomGenJetMatchingProducer, self).__init__(*args, **kwargs)
+        if not os.getenv(f"_CustomGenJetMatchingProducer"):
+            os.environ[f"_CustomGenJetMatchingProducer"] = "CustomGenJetMatchingProducer"
+            ROOT.gInterpreter.Declare("""
+                using Vd = const ROOT::RVec<double>&;
+                using Vfloat = const ROOT::RVec<float>&;
+                using Vint = const ROOT::RVec<int>&;
+                #include "DataFormats/Math/interface/deltaR.h"
+                
+                std::vector<int> custom_jet_matches_bjet(
+                    std::vector<std::vector<double>> jets,
+                    int nGenPart,
+                    Vfloat GenPart_eta,
+                    Vfloat GenPart_phi,
+                    Vint GenPart_pdgId,
+                    Vint GenPart_status
+                ) {
+                    std::vector<int> jet_isb(%s, 0);
+                    for (size_t i = 0; i < %s; i++) {
+                        if (jets[i][0] == 0)
                             break;
+                        for (size_t igen = 0; igen < nGenPart; igen++) {
+                            if (abs(GenPart_pdgId[igen]) != 5 || GenPart_status[igen] != 23)
+                                continue;
+                            if (reco::deltaR(GenPart_eta[igen], GenPart_phi[igen], jets[i][1], jets[i][2]) < 0.4) {
+                                jet_isb[i] = 1;
+                                break;
+                            }
                         }
                     }
+                    return jet_isb;
                 }
-                return jet_isb;
-            }
-        """)
+            """ % (self.max_jets, self.max_jets))
 
     def run(self, df):
         df = df.Define(
-            "jet_isb", "jet_matches_bjet(jets, nGenPart, GenPart_eta, GenPart_phi, GenPart_pdgId, GenPart_status)"
+            "jet_isb", "custom_jet_matches_bjet(jets, nGenPart, GenPart_eta, GenPart_phi, GenPart_pdgId, GenPart_status)"
         )
         return df, ["jet_isb"]
+
+
+def CustomGenJetMatching(*args, **kwargs):
+    return lambda: CustomGenJetMatchingProducer(*args, **kwargs)
+
+
+class GenJetMatchingProducer(JetOutput):
+    def __init__(self, *args, **kwargs):
+        super(GenJetMatchingProducer, self).__init__(*args, **kwargs)
+        self.jet_var = kwargs.pop("jet_var")
+
+        if not os.getenv(f"_GenJetMatchingProducer"):
+            os.environ[f"_GenJetMatchingProducer"] = "GenJetMatchingProducer"
+            ROOT.gInterpreter.Declare("""
+                using Vd = const ROOT::RVec<double>&;
+                using Vfloat = const ROOT::RVec<float>&;
+                using Vint = const ROOT::RVec<int>&;
+                #include "DataFormats/Math/interface/deltaR.h"
+                
+                ROOT::RVec<int> jet_matches_bjet(
+                    int nJet,
+                    Vfloat Jet_eta,
+                    Vfloat Jet_phi,
+                    int nGenPart,
+                    Vfloat GenPart_eta,
+                    Vfloat GenPart_phi,
+                    Vint GenPart_pdgId,
+                    Vint GenPart_status
+                ) {
+                    ROOT::RVec<int> jet_isb(nJet, 0);
+                    for (size_t i = 0; i < nJet; i++) {
+                        for (size_t igen = 0; igen < nGenPart; igen++) {
+                            if (abs(GenPart_pdgId[igen]) != 5 || GenPart_status[igen] != 23)
+                                continue;
+                            if (reco::deltaR(GenPart_eta[igen], GenPart_phi[igen], Jet_eta[i], Jet_phi[i]) < 0.4) {
+                                jet_isb[i] = 1;
+                                break;
+                            }
+                        }
+                    }
+                    return jet_isb;
+                }
+            """)
+
+    def run(self, df):
+        df = df.Define(
+            f"{self.jet_var}_isb",
+            f"jet_matches_bjet(n{self.jet_var}, {self.jet_var}_eta, {self.jet_var}_phi, "
+                "nGenPart, GenPart_eta, GenPart_phi, GenPart_pdgId, GenPart_status)"
+        )
+        return df, [f"{self.jet_var}_isb"]
+
+
+def GenJetMatching(*args, **kwargs):
+    return lambda: GenJetMatchingProducer(*args, **kwargs)
 
 
 class GenJetParticleMatchingProducer():
@@ -205,6 +263,9 @@ def GenJetParticleMatching(*args, **kwargs):
 class JetGenJetMatchingProducer():
     def __init__(self, *args, **kwargs):
         self.jet_var = kwargs.pop("jet_var")
+        self.max_jets = kwargs.pop("max_jets", -1)
+        self.presort = kwargs.pop("presort", False)
+
         if not os.getenv("_jet_JetGenJetMatchingProducer"):
             os.environ["_jet_JetGenJetMatchingProducer"] = "_jet_JetGenJetMatchingProducer"
 
@@ -214,7 +275,7 @@ class JetGenJetMatchingProducer():
                 using Vint = const ROOT::RVec<int>&;
                 #include "DataFormats/Math/interface/deltaR.h"
                 
-                ROOT::RVec<int> genjet_matches_jet(
+                ROOT::RVec<float> genjet_matches_jet(
                     int nJet,
                     Vfloat Jet_eta,
                     Vfloat Jet_phi,
@@ -222,11 +283,12 @@ class JetGenJetMatchingProducer():
                     Vfloat GenJet_eta,
                     Vfloat GenJet_phi
                 ) {
-                    ROOT::RVec<int> genjet_matches_jet_vec(nGenJet, 0);
+                    ROOT::RVec<float> genjet_matches_jet_vec(nGenJet, 999.);
                     for (size_t i = 0; i < nGenJet; i++) {
                         for (size_t ijet = 0; ijet < nJet; ijet++) {
-                            if (reco::deltaR(Jet_eta[ijet], Jet_phi[ijet], GenJet_eta[i], GenJet_phi[i]) < 0.4) {
-                                genjet_matches_jet_vec[i] = 1;
+                            auto mindR = reco::deltaR(Jet_eta[ijet], Jet_phi[ijet], GenJet_eta[i], GenJet_phi[i]);
+                            if (mindR < genjet_matches_jet_vec[i]) {
+                                genjet_matches_jet_vec[i] = mindR;
                             }
                         }
                     }
@@ -235,15 +297,100 @@ class JetGenJetMatchingProducer():
             """)
 
     def run(self, df):
-        df = df.Define(
-            f"GenJet_match{self.jet_var}", f"genjet_matches_jet(n{self.jet_var}, {self.jet_var}_eta, {self.jet_var}_phi, "
-                "nGenJet, GenJet_eta, GenJet_phi)"
-        )
-        return df, [f"GenJet_match{self.jet_var}"]
+        if not "friend." in self.jet_var:
+            if self.max_jets == -1:
+                df = df.Define(
+                    f"GenJet_{self.jet_var}_dR", "genjet_matches_jet("
+                        f"n{self.jet_var}, {self.jet_var}_eta, {self.jet_var}_phi, "
+                        "nGenJet, GenJet_eta, GenJet_phi)"
+                )
+            else:
+                if not self.presort:
+                    df = df.Define(
+                        f"GenJet_{self.max_jets}J_{self.jet_var}_dR", "genjet_matches_jet("
+                            f"std::min(n{self.jet_var}, {self.max_jets}), "
+                            f"{self.jet_var}_eta, "
+                            f"{self.jet_var}_phi, "
+                            "nGenJet, GenJet_eta, GenJet_phi)"
+                    )
+                    return df, [f"GenJet_{self.max_jets}J_{self.jet_var}_dR"]
+                else:
+                    if not f"sort_{self.jet_var}_desc" in list(df.GetColumnNames()):
+                        df = df.Define(
+                            f"sort_{self.jet_var}_desc", f"Argsort({self.jet_var}_pt)"
+                        )
+                    df = df.Define(
+                        f"GenJet_sorted_{self.max_jets}J_{self.jet_var}_dR", 
+                            "genjet_matches_jet("
+                                f"std::min(n{self.jet_var}, {self.max_jets}), "
+                                f"{self.jet_var}_eta[sort_{self.jet_var}_desc], "
+                                f"{self.jet_var}_phi[sort_{self.jet_var}_desc], "
+                                "nGenJet, GenJet_eta, GenJet_phi)"
+                    )
+                    return df, [f"GenJet_sorted_{self.max_jets}J_{self.jet_var}_dR"]
+        else:
+            self.jet_var = self.jet_var.replace("friend.", "")
+            df = df.Define(
+                f"GenJet_{self.jet_var}_dR", f"genjet_matches_jet(friend.n{self.jet_var}, friend.{self.jet_var}_eta, friend.{self.jet_var}_phi, "
+                    "nGenJet, GenJet_eta, GenJet_phi)"
+            )
+        return df, [f"GenJet_{self.jet_var}_dR"]
 
 
 def JetGenJetMatching(*args, **kwargs):
     return lambda: JetGenJetMatchingProducer(*args, **kwargs)
+
+
+class GenJetJetMatchingProducer():
+    def __init__(self, *args, **kwargs):
+        self.jet_var = kwargs.pop("jet_var")
+        if not os.getenv("_jet_GenJetJetMatchingProducer"):
+            os.environ["_jet_GenJetJetMatchingProducer"] = "_jet_GenJetJetMatchingProducer"
+
+            ROOT.gInterpreter.Declare("""
+                using Vd = const ROOT::RVec<double>&;
+                using Vfloat = const ROOT::RVec<float>&;
+                using Vint = const ROOT::RVec<int>&;
+                #include "DataFormats/Math/interface/deltaR.h"
+                
+                ROOT::RVec<float> jet_matches_genjet(
+                    int nJet,
+                    Vfloat Jet_eta,
+                    Vfloat Jet_phi,
+                    int nGenJet,
+                    Vfloat GenJet_eta,
+                    Vfloat GenJet_phi
+                ) {
+                    ROOT::RVec<float> jet_matches_genjet_vec(nJet, 999.);
+                    for (size_t ijet = 0; ijet < nJet; ijet++) {
+                        for (size_t i = 0; i < nGenJet; i++) {
+                            auto mindR = reco::deltaR(Jet_eta[ijet], Jet_phi[ijet], GenJet_eta[i], GenJet_phi[i]);
+                            if (mindR < jet_matches_genjet_vec[ijet]) {
+                                jet_matches_genjet_vec[ijet] = mindR;
+                            }
+                        }
+                    }
+                    return jet_matches_genjet_vec;
+                }
+            """)
+
+    def run(self, df):
+        if not "friend." in self.jet_var:
+            df = df.Define(
+                f"{self.jet_var}_GenJet_dR", f"jet_matches_genjet(n{self.jet_var}, {self.jet_var}_eta, {self.jet_var}_phi, "
+                    "nGenJet, GenJet_eta, GenJet_phi)"
+            )
+        else:
+            self.jet_var = self.jet_var.replace("friend.", "")
+            df = df.Define(
+                f"{self.jet_var}_GenJet_dR", f"jet_matches_genjet(friend.n{self.jet_var}, friend.{self.jet_var}_eta, friend.{self.jet_var}_phi, "
+                    "nGenJet, GenJet_eta, GenJet_phi)"
+            )
+        return df, [f"{self.jet_var}_GenJet_dR"]
+
+
+def GenJetJetMatching(*args, **kwargs):
+    return lambda: GenJetJetMatchingProducer(*args, **kwargs)
 
 
 class SeededConeJetAlgoProducer():
@@ -859,3 +1006,95 @@ def JetMaker(*args, **kwargs):
     """
 
     return lambda: JetMakerProducer(*args, **kwargs)
+
+
+
+class JetGenJetResolProducer():
+    def __init__(self, *args, **kwargs):
+        self.jet_var = kwargs.pop("jet_var")
+
+        if not os.getenv("_jet_JetGenJetResolProducer"):
+            os.environ["_jet_JetGenJetResolProducer"] = "_jet_JetGenJetResolProducer"
+
+            ROOT.gInterpreter.Declare("""
+                using Vd = const ROOT::RVec<double>&;
+                using Vfloat = const ROOT::RVec<float>&;
+                using Vint = const ROOT::RVec<int>&;
+                #include "DataFormats/Math/interface/deltaR.h"
+                
+                ROOT::RVec<float> get_genjet_jet_deltaPt(
+                    int nJet,
+                    Vfloat Jet_pt,
+                    Vfloat Jet_eta,
+                    Vfloat Jet_phi,
+                    int nGenJet,
+                    Vfloat GenJet_pt,
+                    Vfloat GenJet_eta,
+                    Vfloat GenJet_phi
+                ) {
+                    ROOT::RVec<int> genjet_jet_deltaPt(nGenJet, -999);
+                    for (size_t i = 0; i < nGenJet; i++) {
+                        auto minDeltaR = 999;
+                        auto index = -1;
+                        for (size_t ijet = 0; ijet < nJet; ijet++) {
+                            auto deltaR = reco::deltaR(Jet_eta[ijet], Jet_phi[ijet], GenJet_eta[i], GenJet_phi[i]);
+                            if (deltaR < minDeltaR) {
+                                minDeltaR = deltaR;
+                                index = ijet;
+                            }
+                        }
+                        if (minDeltaR < 0.4) {
+                            genjet_jet_deltaPt[i] = GenJet_pt[i] - Jet_pt[index];
+                        } 
+                    }
+                    return genjet_jet_deltaPt;
+                }
+            """)
+
+    def run(self, df):
+        if not "friend." in self.jet_var:
+            if self.max_jets == -1:
+                df = df.Define(
+                    f"GenJet_dPt_{self.jet_var}", "get_genjet_jet_deltaPt("
+                        f"n{self.jet_var}, {self.jet_var}_pt, {self.jet_var}_eta, {self.jet_var}_phi, "
+                        "nGenJet, GenJet_pt, GenJet_eta, GenJet_phi)"
+                )
+            else:
+                if not self.presort:
+                    df = df.Define(
+                        f"GenJet_dPt_{self.max_jets}J_{self.jet_var}", "get_genjet_jet_deltaPt("
+                            f"std::min(n{self.jet_var}, {self.max_jets}), "
+                            f"{self.jet_var}_pt, "
+                            f"{self.jet_var}_eta, "
+                            f"{self.jet_var}_phi, "
+                            "nGenJet, GenJet_pt, GenJet_eta, GenJet_phi)"
+                    )
+                    return df, [f"GenJet_dPt_{self.max_jets}J_{self.jet_var}"]
+                else:
+                    if not f"sort_{self.jet_var}_desc" in list(df.GetColumnNames()):
+                        df = df.Define(
+                            f"sort_{self.jet_var}_desc", f"Argsort({self.jet_var}_pt)"
+                        )
+                    df = df.Define(
+                        f"GenJet_dPt_sorted_{self.max_jets}J_{self.jet_var}", 
+                            "get_genjet_jet_deltaPt("
+                                f"std::min(n{self.jet_var}, {self.max_jets}), "
+                                f"{self.jet_var}_pt[sort_{self.jet_var}_desc], "
+                                f"{self.jet_var}_eta[sort_{self.jet_var}_desc], "
+                                f"{self.jet_var}_phi[sort_{self.jet_var}_desc], "
+                                "nGenJet, GenJet_pt, GenJet_eta, GenJet_phi)"
+                    )
+                    return df, [f"GenJet_dPt_sorted_{self.max_jets}J_{self.jet_var}"]
+
+        else:
+            self.jet_var = self.jet_var.replace("friend.", "")
+            df = df.Define(
+                f"GenJet_dPt_{self.jet_var}", "get_genjet_jet_deltaPt("
+                    f"friend.n{self.jet_var}, friend.{self.jet_var}_pt, friend.{self.jet_var}_eta, friend.{self.jet_var}_phi, "
+                    "nGenJet, GenJet_pt, GenJet_eta, GenJet_phi)"
+            )
+        return df, [f"GenJet_dPt_{self.jet_var}"]
+
+
+def JetGenJetResol(*args, **kwargs):
+    return lambda: JetGenJetResolProducer(*args, **kwargs)
